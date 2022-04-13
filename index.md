@@ -4,6 +4,6 @@
 
 ## Homework 1
 [Here](https://bu-ie-360.github.io/spring22-cereendundaar/IE360_HW1.html) is my HTML file.<br>
-[Here](https://github.com/BU-IE-360/spring22-cereendundaar/blob/gh-pages/HW_1_rmd) is my rmd file
+[Here](https://github.com/BU-IE-360/spring22-cereendundaar/blob/gh-pages/HW_1.Rmd) is my rmd file
 
-
+[Here](https://bu-ie-360.github.io/spring22-RefikaKalyoncu/Refika_Kalyoncu_HW1.html) is my HTML file.<br>
