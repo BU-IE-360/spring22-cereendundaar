@@ -1,0 +1,249 @@
+---
+title: "HW_2 - Time Series Regression"
+author: "Ceren Dündar"
+date: '2022-05-12'
+output: html_document
+---
+# Homework Short Introduction
+
+In this homework, the sales of Unloaded Gasoline Sales (target variable) for each quarter of 2007 are tried to be forecasted by using some regression methods. The data that is used includes 9 independent variables such as UGS: Unleaded gasoline sales in a given quarter, RNUV: Index showing the rate of new unleaded gasoline vehicles added to the traffic in a quarter, PU: Average price of one liter of unleaded gasoline per quarter (adjusted by index), PG: Average price of one liter of diesel gasoline per quarter (adjusted by an index), NUGV: Number of unleaded gasoline driving in traffic, NDGV: Number of diesel fuel vehicles driving in traffic (per 1000 people), GNPA: agricultural component of Gross National Product (adjusted by index), GNPC: Trade component of Gross National Product (adjusted by an index), GNP: The grand total for GNP (the sum of agriculture, trade and other components).
+
+In following sections, required libraries will be imported, then data structure will be inspected and some data updates will come up if necessary to do improvement on models. After handling with data, it will be visualized by plotting and examined from different aspects before starting to forecast. After forecasting, the best model will be selected and explanation will be given. Lastly, prediction values for 2007 Quarters will be presented.
+
+# Importing Libraries
+```{r message=FALSE, warning=FALSE}
+
+require(data.table)
+library(stringr)
+require(xlsx)
+library(lubridate)
+library(zoo)
+library(ggplot2)
+library(RcppRoll)
+library(GGally)
+library(skimr)
+library(forecast)
+library(dplyr)
+
+```
+
+## Importing data
+
+Our csv data is read.
+```{r message=FALSE, warning=FALSE}
+data_path='C:/Users/Asus/Desktop/IE360/HW2/IE360_Spring22_HW2_data.csv'
+UGSdata=fread(data_path)
+
+```
+
+
+
+## Data Reading
+
+Firstly, data is read before making any change. It can be seen that some variables are numeric, some variables are character type. We want all of them numeric.
+
+```{r message=FALSE, warning=FALSE}
+head(UGSdata)
+str(UGSdata)
+```
+
+
+## Data Manipulation
+
+Firstly, all variables are converted to numeric characters (NLPG, NUGV, GNP Agriculture etc. were character types and they also should be numeric). And, short names are given for each column.
+
+```{r message=FALSE, warning=FALSE}
+
+UGSdata=as.data.frame(apply(UGSdata,2,function(x)gsub('\\s+', '',x)))
+UGSdata[,2]=as.numeric(as.character(UGSdata[,2]))
+UGSdata[,3]=as.numeric(as.character(UGSdata[,3]))       
+UGSdata[,4]=as.numeric(as.character(UGSdata[,4]))
+UGSdata[,5]=as.numeric(as.character(UGSdata[,5])) 
+UGSdata[,6]=as.numeric(as.character(UGSdata[,6]))
+UGSdata[,7]=as.numeric(as.character(UGSdata[,7]))       
+UGSdata[,8]=as.numeric(as.character(UGSdata[,8]))
+UGSdata[,9]=as.numeric(as.character(UGSdata[,9])) 
+UGSdata[,10]=as.numeric(as.character(UGSdata[,10]))
+UGSdata[,11]=as.numeric(as.character(UGSdata[,11])) 
+UGSdata[,12:13]=data.frame(str_split_fixed(UGSdata[,1], "_", 2))
+UGSdata[,12]=as.numeric(as.character(UGSdata[,12]))
+colnames(UGSdata)= c("Quarters","UGS","RNUV","NLPG","PU","PG","NUGV","NDGV","GNPA","GNPC","GNPT","Years","Quarter")
+```
+
+Manipulating the data helps us to check "seasonal changes" in time series concept for both quarters and years separately with new two columns.
+
+Now, updated data structure can be seen:
+
+```{r message=FALSE, warning=FALSE}
+str(UGSdata)
+setDT(UGSdata)
+```
+
+## Visualization of the Data
+
+Before forecasting step, UGS(target variable) time series, mean and variance are plotted and visualized. Some comments are made.
+
+### Time Series Plot of UGS Sales
+
+Here is my comments for UGS time series, mean and variance plots at below: According to time series plot, it seems UGS has seasonality effect over time. UGS value is decreasing as time passes, so it can be said that it is "time dependent". It has a decreasing trend for each 4 quarter time period. With respect to mean series of UGS, mean has decreasing pattern which indicates non-stationary data. On the other hand, with respect to variance series of UGS, it seems randomly changing and independent from the time, so variance is stationary.
+
+```{r message=FALSE, warning=FALSE}
+ggplot(UGSdata,aes(x=Quarters,y=UGS, group=1))  +geom_line()
+```
+
+```{r message=FALSE, warning=FALSE}
+mean_series=roll_mean(UGSdata$UGS[1:28],4,align='left')
+var_series=roll_var(UGSdata$UGS[1:28],4,align='left')
+plot(mean_series,
+     type='l',col='black',
+     xlab = "time (t)",
+     ylab = "Rolling Mean",
+     main = "Mean series")
+```
+
+```{r message=FALSE, warning=FALSE}
+plot(var_series,
+     type='l',col='black',
+     xlab = "time (t)",
+     ylab = "Rolling Variance",
+     main = "Variance series")
+```
+
+## Autocorrelation
+
+According to autocorrelation plot of UGS, it has similar pattern for every four quarter periods which shows seasonality. At lag "four" and "eight" autocorrelation is very high due to seasonality effect between same quarters for years. Also lag "one" is relatively higher due to high correlation between previous quarter data.
+
+To sum up with all, we can say that data is non-stationary.
+
+```{r message=FALSE, warning=FALSE}
+acf(UGSdata$UGS,na.action = na.pass)
+```
+
+
+## Defining Trend Variable and Lagged Variable
+
+Trend column is added which is 1...N
+
+```{r message=FALSE, warning=FALSE}
+UGSdata[,trend:=1:.N]
+```
+
+Lag one is added as a lagged variable. (Lag four and eight are related with quarter relation, so just add lag one to use in future steps).
+
+```{r message=FALSE, warning=FALSE}
+UGSdata[,lag1:=shift(UGSdata$UGS,1)]
+```
+
+## Models and Improvements
+
+### Model with Trend
+
+When Adjusted R-squared value is checked to understand power of the model, it is 0.4552. Forecasting UGS by using only trend is not good enough. We already know from previous charts, data has seasonality effect. So, it is normal that adjusted R-squared is not high. Also, p-value is not that small compared to a good prediction model.
+
+```{r message=FALSE, warning=FALSE}
+lm_base=lm(UGS~trend,UGSdata)
+summary(lm_base)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+tmp=copy(UGSdata)
+tmp[,ugs:=UGS]
+tmp[,predicted_trend:=predict(lm_base,tmp)]
+tmp[,residual_trend:=ugs-predicted_trend]
+#head(tmp)
+ggplot(tmp ,aes(x=Quarters)) +
+        geom_line(aes(y=ugs,color='real'),group=1) + 
+        geom_line(aes(y=predicted_trend,color='predicted'),group=1)
+```
+
+\
+As I mentioned above, because only trend is used to predict UGS value, model is predicting a decreasing line. We already know that there is seasonality, without seasonality effect, it is proved that not a good model. 
+
+```{r message=FALSE, warning=FALSE}
+require(forecast)
+checkresiduals(lm_base$residuals)
+```
+\
+When we checked the residuals, sadly we cannot see normality assumption on the graph. Also, there are high correlated lags on autocorrelation plot for lag "two, four, six and eight." These again indicates that model is not good.
+
+### Model with Quarters(seasonality effect),Years, trend, lag1 and other variables
+
+```{r message=FALSE, warning=FALSE}
+lm_model_2=lm(UGS~trend+lag1+Quarter+RNUV+NLPG+PU+PG+NUGV+NDGV+GNPA+GNPC+GNPT+Years,UGSdata)
+summary(lm_model_2)
+tmp[,actual:=UGS]
+tmp[,predicted_trend_quarter_vars:=predict(lm_model_2,tmp)]
+tmp[,residual_trend_quarter_vars:=actual-predicted_trend_quarter_vars]
+```
+ 
+Our second model is constructed by using "independent variables, trend, lag1, quarters and years." So, model predicts by using decreasing trend effect, seasonality effect(due to quarters) and also all independent variables' effect on UGS value. It has really good adjusted R-squared value with 0.9708, also lower p-value with 5.179e-09. But, it can be tried to improved by doing some extra updates.
+
+```{r message=FALSE, warning=FALSE}
+require(forecast)
+checkresiduals(lm_model_2$residuals)
+```
+
+
+Residual graphs of this model also shows us that autocorrelation decreased (lag 2,4,6,8 not high anymore) and residuals are closer to be with normality assumption in the last graph.
+ 
+### Improved model of second model
+
+First model was not good because of not enough predictors. Second model has good prediction power but with some extra updates on it, a better model can be obtained. As we can see on the summary of model_2, two variables "PU,GNPA," are not significant for the model and also they have the highest p-value among insignificant variables. I will eliminate these two variables to see if it is better or not.
+
+```{r message=FALSE, warning=FALSE}
+lm_model_2=lm(UGS~trend+lag1+Quarter+RNUV+NLPG+PG+NUGV+NDGV+GNPC+GNPT+Years,UGSdata)
+summary(lm_model_2)
+tmp[,actual:=UGS]
+tmp[,predicted_trend_quarter_vars:=predict(lm_model_2,tmp)]
+tmp[,residual_trend_quarter_vars:=actual-predicted_trend_quarter_vars]
+```
+
+As it can be seen in the above, adjusted R-squared increased to 0.9728 which is higher than previous model. Also, p-value decreased to 1.083e-10. Both are giving signs for improved model of 2. model is better one :)
+
+```{r message=FALSE, warning=FALSE}
+require(forecast)
+checkresiduals(lm_model_2$residuals)
+```
+\
+For double checking, residuals are almost normally distributed and mean is really close to 0 with improvements. And autocorrelation for lag 2,4,6,8 are decreased with improved 2. model.
+
+## Selected Model
+
+After some improvements, I select my last model with the highest adjusted R-squared value and lowest p-value. In this model, mean of residuals is 2.61190246385889e-13 as I calculated below of summary which is really close to zero, and shape of residuals seems almost normally distributed. Autocorrelations also at most ~0,2. Lastly, residuals seems randomly on the plot which is good. Also, significance of some variables are increased.
+
+```{r message=FALSE, warning=FALSE}
+lm_model_2=lm(UGS~trend+lag1+Quarter+RNUV+NLPG+PG+NUGV+NDGV+GNPC+GNPT+Years,UGSdata)
+summary(lm_model_2)
+tmp[,actual:=UGS]
+tmp[,predicted_trend_quarter_vars:=predict(lm_model_2,tmp)]
+tmp[,residual_trend_quarter_vars:=actual-predicted_trend_quarter_vars]
+```
+
+```{r message=FALSE, warning=FALSE}
+mean = mean(lm_model_2$residuals)
+paste("residual mean:",mean)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+checkresiduals(lm_model_2$residuals)
+```
+
+## 2007 Quarters Forecast
+
+By using my last and best fitted model, I do forecasting of UGS value for four quarters of 2007. Here is the result:
+
+As a result, I tried 3 different models. After doing some extractions on the second model, I gained a better model(third) which I used for forecasting 2007. This model has the lowest p-value, the highest adj. R squared value and the most proper residuals on assumptions. \
+Here is the UGS sales predictions for year 2007:
+
+```{r message=FALSE, warning=FALSE}
+predc= UGSdata[29:32,c("trend","lag1","Quarter","RNUV","NLPG","PG","NUGV","NDGV","GNPC","GNPT","Years")]
+prediction = c(0,0,0,0)
+for(i in 1:4) {
+  prediction[i] = predict(lm_model_2,newdata = predc[i,])
+  if(i<4){predc[i+1,"lag1"] = prediction[i] }
+}
+prediction
+```
+
