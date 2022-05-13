@@ -7,6 +7,6 @@
 [Here](https://github.com/BU-IE-360/spring22-cereendundaar/blob/gh-pages/IE360_HW1.Rmd) is my rmd file
 
 ## Homework 2
-[Here](https://bu-ie-360.github.io/spring22-cereendundaar/HW_2 - Time Series Regression.html) is my HTML file.<br>
+[Here](https://bu-ie-360.github.io/spring22-cereendundaar/HW_2.html) is my HTML file.<br>
 [Here](https://github.com/BU-IE-360/spring22-cereendundaar/blob/gh-pages/HW_2.Rmd) is my rmd file
 
