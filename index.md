@@ -10,3 +10,9 @@
 [Here](https://bu-ie-360.github.io/spring22-cereendundaar/HW_2.html) is my HTML file.<br>
 [Here](https://github.com/BU-IE-360/spring22-cereendundaar/blob/gh-pages/HW_2.Rmd) is my rmd file
 
+
+## PROJECT
+[Here](https://bu-ie-360.github.io/spring22-cereendundaar/IE360PROJECT.html) is my HTML file.<br>
+[Here](https://github.com/BU-IE-360/spring22-cereendundaar/blob/gh-pages/IE360PROJECT.Rmd) is my rmd file
+
+
